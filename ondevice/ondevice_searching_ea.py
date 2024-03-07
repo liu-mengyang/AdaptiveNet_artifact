@@ -390,7 +390,8 @@ def main():
                             std=[0.229, 0.224, 0.225])
     ])
     dataset_eval = torchvision.datasets.ImageFolder(root=args.data_dir,transform=data_transform)
-    idxs = np.load('./npy/idxs.npy').tolist()[:args.data_len]
+    # idxs = np.load('./npy/idxs.npy').tolist()[:args.data_len]
+    idxs = [i for i in range(3000)]
     eval_set = Subset(dataset_eval, idxs)
     loader_eval = torch.utils.data.DataLoader(eval_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     baseline_subnet = model.generate_random_subnet()

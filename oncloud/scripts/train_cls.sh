@@ -4,5 +4,5 @@
 
 python train_classification.py --dataset imagenet --model resnet50 --amp --batch 64 --sched step --lr 3.9e-4 --warmup-lr 4.3e-4 --epochs 600 --weight-decay 0.01 \
  --train-interpolation bicubic --crop-pct 0.95 --smoothing 0.1 --warmup-epochs 2 --aa rand-m7-n3-mstd1.0-inc1 --seed 0 --opt adamp --drop-path 0.05 --drop 0.1 \
-  --reprob 0.35 --mixup .2 --cutmix 1.0 --bce-loss --data_dir ../datasets/imagenet/ \
-  -j 8 --original_model pretrainedweight/resnet50_a1_0-14fe96d1.pth --stage 0 --pretrain_epochs 60 --decay-epochs 1.5 --decay-rate .875 # GPU0
+  --reprob 0.35 --mixup .2 --cutmix 1.0 --bce-loss --data_dir /datasets/imagenet \
+  -j 8 --original_model pretrainedweight/resnet50_a1_0-14fe96d1.pth --stage 0 --pretrain_epochs 60 --decay-epochs 1.5 --decay-rate .875 --device_id 2

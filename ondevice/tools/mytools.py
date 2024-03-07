@@ -328,7 +328,7 @@ def load_data(model, model_type, data_dir, save_path, method, load_times=None, b
                             std=[0.229, 0.224, 0.225])
     ])
     dataset_eval = torchvision.datasets.ImageFolder(root=data_dir,transform=data_transform)
-    idxs = np.load('./npy/idxs.npy').tolist()[:data_len]
+    idxs = [i for i in range(3000)]
     if load_times is None:
         batch_size = get_batchsize(model,(2,3,224,224),0)
         load_times  = math.ceil(len(dataset_eval)/batch_size)
