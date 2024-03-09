@@ -135,64 +135,35 @@ parser.add_argument("--baseline_load_times", default=1, type=int)
 parser.add_argument("--baseline_batch_size", default=500, type=int)
 parser.add_argument('--method', default='AdaptiveNet',type=str)
 
-def test_lat(block, input, test_times, f1, f2):
-    x = torch.rand(input.shape).cuda()
-    lats = []
-    for i in range(test_times):
-        t1 = time.time()
-        _ = block(x)
-        torch.cuda.synchronize()
-        t2 = time.time() - t1
-        if i > 200:
-            lats.append(t2)
-    print(np.mean(lats))
-    return np.mean(lats)
+# def test_lat(block, input, test_times):
+#     x = torch.rand(input.shape).cuda()
+#     lats = []
+#     for i in range(test_times):
+#         t1 = time.time()
+#         _ = block(x)
+#         torch.cuda.synchronize()
+#         t2 = time.time() - t1
+#         if i > 200:
+#             lats.append(t2)
+#     print(f"Testing lates!")
+#     print(np.mean(lats))
+#     return np.mean(lats)
 
-converter = Converter()
-connector = BackendConnector('samsung0_tflite_cpu.json')
-profile_cfg = {
-            "taskset": "f0",
-            "num_runs": 50,
-            "num_threads": 4,
-            "run_delay": -1,
-            "warm_ups": 2,
-            "use_gpu": False,
-            "gpu_backend": "",
-            "use_npu": False,
-            "use_fp16": False,
-            "use_int8": False,
-            "use_xnnpack": False,
-            "use_hexagon": False,
-            "use_nnapi": False,
-            "nnapi_on_cpu": False,
-            "enable_op_profiling": True,
-            "dst_kernel_path": False
-        }
-block_cnt = 0
 
-# def test_lat(block, input, test_times, block_idx=0, choice_idx=0):
-#     block_name = f'block_{block_idx}_{choice_idx}'
-#     if not os.path.exists(f'models/{block_name}_float32.tflite'):
-#         converter.torch2tflite(
-#             block.to('cpu'),
-#             block_name,
-#             input.shape,
-#             save_dir='models'
-#         )
-#     local_model_path = f'models/{block_name}_float32.tflite'
-#     connector.send_model(local_model_path)
-#     remote_model_path = os.path.join(connector.model_dir, f'{block_name}_float32.tflite')
+evaluator = Evaluator('configs/evaluate/im1k_gpu0.json')
 
-#     res = connector.profile(
-#         model_path=remote_model_path,
-#         configs=profile_cfg,
-#         specific_benchmark=connector.benchmark_fp32_model_path,
-#         enable_latency_constraint=False
-#     )
-#     latency = connector.parse(res)['latency'].avg
-#     print('====== Latency:', latency / 1000)
-#     block.to('cuda')
-#     return latency / 1000
+def test_lat(block, input, test_times, block_idx=0, choice_idx=0):
+    latency = evaluator.evaluate_latency(
+        block, 
+        input.shape, 
+        'configs/backends/samsung0_tflite_cpu.json',
+        'configs/commands/tflite_cpu_fp32_f0.json'
+    )
+    print('Latency:', latency)
+    block.cuda()
+    return latency.avg / 1000
+
+
 
 
 def get_resnet_lats(model, batchsize, test_times=500):
@@ -450,6 +421,7 @@ def main():
     eval_set = Subset(dataset_eval, idxs)
     loader_eval = torch.utils.data.DataLoader(eval_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
+
     baseline_subnet = model.generate_random_subnet()
     baseline_subnet = [0 for _ in range(len(baseline_subnet))]
 
@@ -462,28 +434,22 @@ def main():
     ############## Evaluate Baseline Accuracy #####################################
     ###############################################################################
 
-    # evaluator = Evaluator('configs/evaluate/im1k_gpu1.json')
     # evaluator.evaluate_accuracy(model)
 
     ###############################################################################
     ############## Evaluate Baseline Latency ######################################
     ###############################################################################
 
-    example_input = torch.randn(4, 3, 224, 224)
-    example_input = example_input.to('cuda')
-    with torch.no_grad():
-        latencies = []
-        for i in range(200):
-            t1 = time.time()
-            _ = model(example_input)
-            t2 = time.time() - t1
-            if i > 100:
-                latencies.append(t2)
-    baseline_latency = np.mean(latencies)
-            
+    true_baseline_latency = evaluator.evaluate_latency(
+        model,
+        (4, 3, 224, 224),
+        'configs/backends/samsung0_tflite_cpu.json',
+        'configs/commands/tflite_cpu_fp32_f0.json'
+    )
+    model.cuda()
+
     
-    print('====== Baseline True Latency:', baseline_latency)
-    model.to('cuda')
+    print('====== True Baseline Latency:', true_baseline_latency)
 
     acc, baseline_latency = validate_baseline(model, loader_eval, baseline_subnet, args, loss_fn, lats)
     print("method : {} population_size : {}  validate_baseline acc:{}  latency:{}".format(args.method, args.population_size, acc, baseline_latency))
@@ -498,25 +464,24 @@ def main():
     best_subnet = best_info[1]
 
     model.apply_subnet(best_subnet)
-    evaluator = Evaluator('configs/evaluate/im1k_gpu1.json')
-    evaluator.evaluate_accuracy(model)
+    # evaluator.evaluate_accuracy(model)
 
-    converter.torch2tflite(
-        model.to('cpu'),
-        'best',
-        (1, 3, 224, 224),
-        save_dir='models'
-    )
-    connector.send_model('models/best_float32.tflite')
-    res = connector.profile(
-        model_path=os.path.join(connector.model_dir, 'best_float32.tflite'),
-        configs=profile_cfg,
-        specific_benchmark=connector.benchmark_fp32_model_path,
-        enable_latency_constraint=False
-    )
-    best_latency = connector.parse(res)['latency'].avg / 1000
-    print('====== Best Latency:', best_latency)
-    model.to('cuda')
+    # converter.torch2tflite(
+    #     model.to('cpu'),
+    #     'best',
+    #     (1, 3, 224, 224),
+    #     save_dir='models'
+    # )
+    # connector.send_model('models/best_float32.tflite')
+    # res = connector.profile(
+    #     model_path=os.path.join(connector.model_dir, 'best_float32.tflite'),
+    #     configs=profile_cfg,
+    #     specific_benchmark=connector.benchmark_fp32_model_path,
+    #     enable_latency_constraint=False
+    # )
+    # best_latency = connector.parse(res)['latency'].avg / 1000
+    # print('====== Best Latency:', best_latency)
+    # model.to('cuda')
 
 
 

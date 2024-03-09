@@ -1178,16 +1178,24 @@ class ResNet(nn.Module):
                     self.inter_feature[subnet_pre_block_name] = x
                     self.to_cpu_time += time.time() - t1 
         return x,0,0
+    
+    def apply_subnet(self, subnet):
+        self.subnet = subnet
 
     def forward_normal(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        blockidx = 0
+        while blockidx < len(self.subnet):
+            x = self.multiblocks[blockidx][self.subnet[blockidx]](x)
+            if self.subnet[blockidx] == 1:
+                blockidx += 2
+            elif self.subnet[blockidx] == 2:
+                blockidx += 3
+            else:
+                blockidx += 1
         return x
 
     def forward_validate_subnet(self, x,batch_idx=-1):
